@@ -8,7 +8,8 @@ class Gurunavi
 {
     private const RESTAURANTS_SEARCH_API_URL = 'https://api.gnavi.co.jp/RestSearchAPI/v3/';
 
-    public function searchRestaurants($word)
+    // public function searchRestaurants($word)
+    public function searchRestaurants(string $word): array
     {
         $client = new Client();
         $response = $client
