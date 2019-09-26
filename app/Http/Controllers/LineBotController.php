@@ -3,10 +3,14 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Services\RestaurantBubbleBuilder;
 use Illuminate\Support\Facades\Log;
 use LINE\LINEBot;
 use LINE\LINEBot\Event\MessageEvent\TextMessage;
 use LINE\LINEBot\HTTPClient\CurlHTTPClient;
+use LINE\LINEBot\MessageBuilder\FlexMessageBuilder;
+use LINE\LINEBot\MessageBuilder\Flex\ContainerBuilder\CarouselContainerBuilder;
+use App\Services\Gurunavi;
 
 class LineBotController extends Controller
 {
@@ -15,11 +19,8 @@ class LineBotController extends Controller
         return view('linebot.index');
     }
 
-    public function parrot(Request $request)
+    public function restaurants(Request $request)
     {
-//        Log::debug($request->header());
-//        Log::debug($request->input());
-
         $httpClient = new CurlHTTPClient(env('LINE_ACCESS_TOKEN'));
         $lineBot = new LINEBot($httpClient, ['channelSecret' => env('LINE_CHANNEL_SECRET')]);
 
@@ -37,9 +38,31 @@ class LineBotController extends Controller
                 continue;
             }
 
-            $replyToken = $event->getReplyToken();
-            $replyText = $event->getText();
-            $lineBot->replyText($replyToken, $replyText);
+            $gurunavi = new Gurunavi();
+            $gurunaviResponse = $gurunavi->searchRestaurants($event->getText());
+
+            if(array_key_exists('error', $gurunaviResponse)) {
+                $replyText = $gurunaviResponse['error'][0]['message'];
+                $replyToken = $event->getReplytoken();
+                $lineBot->replyText($replyToken, $replyText);
+                continue;
+            }
+
+            $bubbles = [];
+            foreach ($gurunaviResponse['rest'] as $restaurant) {
+                $bubble = RestaurantBubbleBuilder::builder();
+                $bubble->setContents($restaurant);
+                $bubbles[] = $bubble;
+            }
+
+            $carousel = CarouselContainerBuilder::builder();
+            $carousel->setContents($bubbles);
+
+            $flex = FlexMessageBuilder::builder();
+            $flex->setAltText('飲食店検索結果');
+            $flex->setContents($carousel);
+
+            $lineBot->replyMessage($event->getReplyToken(), $flex);
         }
     }
 }
